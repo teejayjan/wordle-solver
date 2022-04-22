@@ -5,10 +5,15 @@ class WordDictionary:
     def __init__(self, file):
         self.words_list = self.read_file(file)
         self.words = self.convert_to_dictionary(self.words_list)
+        self.letter_frequencies = self.convert_to_frequencies(self.words_list)
 
     def get_words(self, letter, index):
         """Returns words with a given letter at a given index."""
         return self.words[letter][index]
+
+    def get_frequencies_at_index(self, index):
+        """Returns a dictionary of letter frequences at a given index."""
+        return self.letter_frequencies[index]
 
     def read_file(self, file):
         """Reads in text file of newline separated words and returns list."""
@@ -18,17 +23,28 @@ class WordDictionary:
                 word_list.append(line.rstrip())
         return word_list
 
-    def convert_to_dictionary(self, list):
+    def convert_to_dictionary(self, l):
         """Takes list of words and stores in dictionary:
         { letter : { letter_position: word } }"""
         alphabet = string.ascii_lowercase
         word_dict = dict.fromkeys(alphabet)
         for key in word_dict:
             word_dict[key] = {new_list: [] for new_list in range(5)}
-        for word in list:
+        for word in l:
             for i in range(5):
                 word_dict[word[i]][i].append(word)
         return word_dict
+
+    def convert_to_frequencies(self, l):
+        """Takes list of words and stores count of letters in each index:
+        { index: { letter: frequency } }"""
+        alphabet = string.ascii_lowercase
+        frequencies = dict.fromkeys(
+            [0, 1, 2, 3, 4], dict.fromkeys(alphabet, 0))
+        for word in l:
+            for i in range(5):
+                frequencies[i][word[i]] += 1
+        return frequencies
 
 
 class Solver:
@@ -68,8 +84,21 @@ class Solver:
                 self.green_guesses[i] = "*" + letter + "*"
 
         self.num_guesses += 1
-        # print(self.count_patterns())
-        return self.generate_next_guess(letter)
+        # this should be used to weight raw guesses to filter out potential high-occuring letters early?
+        pattern_guesses = self.next_guess_by_pattern()
+        for i in range(5):
+            if self.green_guesses[i] != "":
+                pattern_guesses[i] = self.green_guesses[i]
+
+        index_guesses = self.next_guess_by_index()
+        return pattern_guesses, index_guesses
+
+        # print(self.words.get_frequencies_at_index(4))
+        # this should have some mechanism for returning ties
+        # maybe bias ties toward what letter occurs more often absolutely in five letter words
+        # so if we're deciding between plait and plant, it would have you guess "n" maybe? Need to count occurences by slot
+        # todo: retool this so that it also removes duplicates
+        # return self.next_guess_by_index(letter)
 
     def generate_possibilities(self, color, pair):
         """Receives color, letter, and index to update possibilities."""
@@ -112,21 +141,9 @@ class Solver:
             ]
             return self.possibilities
 
-    def generate_next_guess(self, guess):
-        """Counts occurrences of remaining letters to generate most likely
-        next guess by position."""
-        prob_display = ["" for x in range(5)]
-
-        for i in range(5):
-            if self.green_guesses[i] == "":
-                prob_display[i] = self.count_letters(i)
-            else:
-                prob_display[i] = self.green_guesses[i]
-
-        return prob_display
-
-    def count_letters(self, index):
-        """Counts occurences of letters at given index."""
+    def get_highest_letter_prob_at_index(self, index):
+        """Returns highest occuring letter and its probability
+        at given index."""
         probabilities = {}
         alphabet = string.ascii_lowercase
         probabilities = dict.fromkeys(alphabet, 0)
@@ -139,7 +156,59 @@ class Solver:
         return (probabilities[0][0],
                 "{0:.0%}".format(probabilities[0][1]/len(self.possibilities)))
 
-    def count_patterns(self):
+    def get_letter_count_at_index(self, letter, index):
+        """Returns the number of occurences of a letter at index."""
+        count = {}
+        alphabet = string.ascii_lowercase
+        count = dict.fromkeys(alphabet, 0)
+        for word in self.possibilities:
+            count[word[index]] += 1
+
+        return count[letter]
+
+    def get_all_letter_counts_at_index(self, index):
+        """Returns number of occurences of all letters at given index."""
+        count = {}
+        alphabet = string.ascii_lowercase
+        count = dict.fromkeys(alphabet, 0)
+        for word in self.possibilities:
+            count[word[index]] += 1
+
+        return count
+
+    def x_next_guess_by_index(self, guess):
+        """Counts occurrences of remaining letters to generate most likely
+        next guess by position."""
+        prob_display = ["" for x in range(5)]
+
+        for i in range(5):
+            if self.green_guesses[i] == "":
+                prob_display[i] = self.get_highest_letter_prob_at_index(i)
+            else:
+                prob_display[i] = self.green_guesses[i]
+
+        return prob_display
+
+    def next_guess_by_index(self):
+        """Returns most frequently occuring letter in each index of remaining
+        possibilities, removing duplicates."""
+        # get sorted count at each index
+        probabilities = dict.fromkeys([0, 1, 2, 3, 4])
+
+        for key in probabilities:
+            frequencies_at_index = self.get_all_letter_counts_at_index(key)
+            frequencies_at_index = sorted(frequencies_at_index.items(),
+                                          key=lambda x: x[1], reverse=True)
+            probabilities[key] = frequencies_at_index
+        
+        # find and keep unique maximums
+        ret_probs = [() for _ in range(5)]
+        
+        
+        
+        return probabilities
+
+    def next_guess_by_pattern(self):
         """Counts occurences of patterns in remaining possibilities."""
         # 1: word[0:3] 2: word[2:5]
         probabilities = {1: {}, 2: {}}
@@ -150,23 +219,79 @@ class Solver:
         for word in self.possibilities:
             pattern_lower = word[0:3]
             pattern_upper = word[2:5]
-            if pattern_lower not in sub_dict_lower.keys():
+            if pattern_lower not in sub_dict_lower:
                 sub_dict_lower[pattern_lower] = 1
-            elif pattern_lower in sub_dict_lower.keys():
+            elif pattern_lower in sub_dict_lower:
                 sub_dict_lower[pattern_lower] += 1
-            if pattern_upper not in sub_dict_upper.keys():
+            if pattern_upper not in sub_dict_upper:
                 sub_dict_upper[pattern_upper] = 1
-            elif pattern_upper not in sub_dict_upper.keys():
+            elif pattern_upper in sub_dict_upper:
                 sub_dict_upper[pattern_upper] += 1
 
         # sort sub dictionaries
-        patterns_lower = sorted(sub_dict_lower.items(),
-                                key=lambda x: x[1], reverse=True)
-        patterns_upper = sorted(sub_dict_upper.items(),
-                                key=lambda x: x[1], reverse=True)
+        patterns_lower_sorted = sorted(sub_dict_lower.items(),
+                                       key=lambda x: x[1], reverse=True)
+        patterns_upper_sorted = sorted(sub_dict_upper.items(),
+                                       key=lambda x: x[1], reverse=True)
 
+        # get top options for each slot
+        top_lower_pattern = patterns_lower_sorted[0]
+        top_upper_pattern = patterns_upper_sorted[0]
+
+        # print(patterns_lower_sorted, patterns_upper_sorted)
+        # print(top_lower_pattern, top_upper_pattern)
+
+        max_frequency = max(top_lower_pattern[1], top_upper_pattern[1])
+
+        # increment lesser pattern if choosing both patterns results in
+        # duplicated letters in guess
+        if top_lower_pattern[1] < max_frequency:
+            lower_letter_one = top_lower_pattern[0][0]
+            lower_letter_two = top_lower_pattern[0][1]
+            upper_pattern = top_upper_pattern[0]
+            i = 0
+            while lower_letter_one in upper_pattern \
+                    or lower_letter_two in upper_pattern:
+                top_lower_pattern = patterns_lower_sorted[i]
+                i += 1
+                lower_letter_one = top_lower_pattern[0][0]
+                lower_letter_two = top_lower_pattern[0][1]
+        else:
+            upper_letter_one = top_upper_pattern[0][1]
+            upper_letter_two = top_upper_pattern[0][2]
+            lower_pattern = top_lower_pattern[0]
+            i = 0
+            while upper_letter_one in lower_pattern \
+                    or upper_letter_two in lower_pattern:
+                top_upper_pattern = patterns_upper_sorted[i]
+                i += 1
+                upper_letter_one = top_upper_pattern[0][1]
+                upper_letter_two = top_upper_pattern[0][2]
+
+        # calculate probabilities
         n = len(self.possibilities)
-        return probabilities
+        lower_pattern_prob = top_lower_pattern[1] / n
+        upper_pattern_prob = top_upper_pattern[1] / n
+
+        ret_probs = []
+
+        # takes middle letter from more common pattern
+        if lower_pattern_prob > upper_pattern_prob:
+            smashed = top_lower_pattern[0][0:3] + top_upper_pattern[0][1:3]
+            for i in range(5):
+                letter = smashed[i]
+                frequency = self.get_letter_count_at_index(letter, i)
+                prob = "{0:.0%}".format(frequency/n)
+                ret_probs.append((letter, prob))
+        else:
+            smashed = top_lower_pattern[0][0:2] + top_upper_pattern[0][0:3]
+            for i in range(5):
+                letter = smashed[i]
+                frequency = self.get_letter_count_at_index(letter, i)
+                prob = "{0:.0%}".format(frequency/n)
+                ret_probs.append((letter, prob))
+
+        return ret_probs
 
 
 if __name__ == "__main__":
@@ -186,12 +311,6 @@ if __name__ == "__main__":
             user_input_list.append(tuple(tup.split(",")))
         if user_input.lower() == "exit":
             break
-        # print(user_input_list)
-        # user_input = user_input.split(", ")
-        # color = user_input[0].upper()
-        # letter = user_input[1].lower()
-        # index = int(user_input[2])
-        # print(solver_instance.user_input(color, (letter, index)))
         print(solver_instance.user_input(user_input_list))
         # print(solver_instance.get_possibilities())
         print("\n")
