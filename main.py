@@ -1,5 +1,3 @@
-from operator import index
-import re
 import string
 
 
@@ -73,6 +71,8 @@ class Solver:
     def user_input(self, pairs):
         """Wrapper function to call internal functions from user inputs."""
 
+        pairs = self.parse_user_input(pairs)
+
         for i in range(5):
             color = pairs[i][0].upper()
             letter = pairs[i][1].lower()
@@ -86,22 +86,28 @@ class Solver:
                 self.green_guesses[i] = "*" + letter + "*"
 
         self.num_guesses += 1
-        # this should be used to weight raw guesses to filter out potential high-occuring letters early?
         pattern_guesses = self.next_guess_by_pattern()
         for i in range(5):
             if self.green_guesses[i] != "":
                 pattern_guesses[i] = self.green_guesses[i]
 
         index_guesses = self.next_guess_by_index()
-        # return pattern_guesses
-        return self.get_guess_word(pattern_guesses), self.get_guess_word_by_index(index_guesses)
+        next_word_by_pattern = self.get_guess_word_by_pattern(pattern_guesses)
+        # message_pattern = "By pattern: " + next_word_by_pattern
 
-    # print(self.words.get_frequencies_at_index(4))
-    # this should have some mechanism for returning ties
-    # maybe bias ties toward what letter occurs more often absolutely in five letter words
-    # so if we're deciding between plait and plant, it would have you guess "n" maybe? Need to count occurences by slot
-    # todo: retool this so that it also removes duplicates
-    # return self.next_guess_by_index(letter)
+        next_word_by_index = self.get_guess_word_by_index(index_guesses)
+        # message_index = "By index: " + next_word_by_index
+
+        # return message_pattern, message_index
+        return [next_word_by_pattern, next_word_by_index]
+
+    def parse_user_input(self, in_str):
+        """Parses input string."""
+        user_input_list = []
+        for tup in in_str.split('),('):
+            tup = tup.replace(")", "").replace("(", "")
+            user_input_list.append(tuple(tup.split(",")))
+        return user_input_list
 
     def generate_possibilities(self, color, pair):
         """Receives color, letter, and index to update possibilities."""
@@ -192,7 +198,7 @@ class Solver:
 
         return prob_display
 
-    def get_guess_word(self, letter_list):
+    def get_guess_word_by_pattern(self, letter_list):
         """Returns word from possibilities that most closely matches
         incoming list of letters."""
         words = dict.fromkeys(self.get_possibilities(), 0)
@@ -209,15 +215,29 @@ class Solver:
         """Returns word from possibilities that most closely matches
         incoming dictionary of letter frequencies at index."""
         words = dict.fromkeys(self.get_possibilities(), 0)
+        n = len(self.possibilities)
         for word in words:
             for key in letter_dict:
                 for letter in letter_dict[key]:
-                    if word[key] == letter_dict[key][0]:
-                        words[word] += 1
+                    if word[key] == letter[0]:
+                        # adds frequency of letter occuring in possibilities
+                        words[word] += letter[1] / n
 
         words = sorted(words.items(), key=lambda x: x[1], reverse=True)
 
-        return words[0][0].upper()
+        # find word without repeated letters
+        ret_word = words[0][0].upper()
+        i = 1
+        while len(set(ret_word)) != len(ret_word):
+            # iterated through all possibilities and didn't find a word
+            # without repeated letters
+            if i >= len(words):
+                ret_word = words[0][0].upper()
+                break
+            ret_word = words[i][0].upper()
+            i += 1
+
+        return ret_word
 
     def next_guess_by_index(self):
         """Returns most frequently occuring letter in each index of remaining
@@ -271,7 +291,13 @@ class Solver:
         # increment lesser pattern if choosing both patterns results in
         # duplicated letters in guess
         # TODO: skip all this if there aren't any duplicates in pattern
-        if top_lower_pattern[1] < max_frequency:
+
+        # exit condition when there are letter duplicates but only one
+        # option in each
+        if len(patterns_lower_sorted) == 1 and len(patterns_upper_sorted) == 1:
+            pass
+
+        elif top_lower_pattern[1] < max_frequency:
             lower_letter_one = top_lower_pattern[0][0]
             lower_letter_two = top_lower_pattern[0][1]
             upper_pattern = top_upper_pattern[0]
@@ -331,12 +357,12 @@ if __name__ == "__main__":
 
         user_input = input("Guess #" + str(solver_instance.get_num_guesses())
                            + ": ")
-        user_input_list = []
-        for tup in user_input.split('),('):
-            tup = tup.replace(")", "").replace("(", "")
-            user_input_list.append(tuple(tup.split(",")))
-        if user_input.lower() == "exit":
-            break
-        print(solver_instance.user_input(user_input_list))
-        # print(solver_instance.get_possibilities())
+        # user_input_list = []
+        # for tup in user_input.split('),('):
+        #     tup = tup.replace(")", "").replace("(", "")
+        #     user_input_list.append(tuple(tup.split(",")))
+        # if user_input.lower() == "exit":
+        #     break
+        print(solver_instance.user_input(user_input))
+        print(solver_instance.get_possibilities())
         print("\n")
