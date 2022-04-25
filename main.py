@@ -1,3 +1,5 @@
+from operator import index
+import re
 import string
 
 
@@ -91,14 +93,15 @@ class Solver:
                 pattern_guesses[i] = self.green_guesses[i]
 
         index_guesses = self.next_guess_by_index()
-        return pattern_guesses, index_guesses
+        # return pattern_guesses
+        return self.get_guess_word(pattern_guesses), self.get_guess_word_by_index(index_guesses)
 
-        # print(self.words.get_frequencies_at_index(4))
-        # this should have some mechanism for returning ties
-        # maybe bias ties toward what letter occurs more often absolutely in five letter words
-        # so if we're deciding between plait and plant, it would have you guess "n" maybe? Need to count occurences by slot
-        # todo: retool this so that it also removes duplicates
-        # return self.next_guess_by_index(letter)
+    # print(self.words.get_frequencies_at_index(4))
+    # this should have some mechanism for returning ties
+    # maybe bias ties toward what letter occurs more often absolutely in five letter words
+    # so if we're deciding between plait and plant, it would have you guess "n" maybe? Need to count occurences by slot
+    # todo: retool this so that it also removes duplicates
+    # return self.next_guess_by_index(letter)
 
     def generate_possibilities(self, color, pair):
         """Receives color, letter, and index to update possibilities."""
@@ -189,6 +192,33 @@ class Solver:
 
         return prob_display
 
+    def get_guess_word(self, letter_list):
+        """Returns word from possibilities that most closely matches
+        incoming list of letters."""
+        words = dict.fromkeys(self.get_possibilities(), 0)
+        for word in words:
+            for i in range(5):
+                if word[i] == letter_list[i][0]:
+                    words[word] += 1
+
+        words = sorted(words.items(), key=lambda x: x[1], reverse=True)
+
+        return words[0][0].upper()
+
+    def get_guess_word_by_index(self, letter_dict):
+        """Returns word from possibilities that most closely matches
+        incoming dictionary of letter frequencies at index."""
+        words = dict.fromkeys(self.get_possibilities(), 0)
+        for word in words:
+            for key in letter_dict:
+                for letter in letter_dict[key]:
+                    if word[key] == letter_dict[key][0]:
+                        words[word] += 1
+
+        words = sorted(words.items(), key=lambda x: x[1], reverse=True)
+
+        return words[0][0].upper()
+
     def next_guess_by_index(self):
         """Returns most frequently occuring letter in each index of remaining
         possibilities, removing duplicates."""
@@ -200,12 +230,7 @@ class Solver:
             frequencies_at_index = sorted(frequencies_at_index.items(),
                                           key=lambda x: x[1], reverse=True)
             probabilities[key] = frequencies_at_index
-        
-        # find and keep unique maximums
-        ret_probs = [() for _ in range(5)]
-        
-        
-        
+
         return probabilities
 
     def next_guess_by_pattern(self):
@@ -245,6 +270,7 @@ class Solver:
 
         # increment lesser pattern if choosing both patterns results in
         # duplicated letters in guess
+        # TODO: skip all this if there aren't any duplicates in pattern
         if top_lower_pattern[1] < max_frequency:
             lower_letter_one = top_lower_pattern[0][0]
             lower_letter_two = top_lower_pattern[0][1]
