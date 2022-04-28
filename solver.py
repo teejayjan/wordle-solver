@@ -138,6 +138,7 @@ class Solver:
                 if self.update_helper(word, color, letter, i):
                     bad_words.append(word)
 
+        bad_words = set(bad_words)
         self.possibilites = [
             w for w in self.possibilites if w not in bad_words
         ]

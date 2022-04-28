@@ -1,4 +1,5 @@
 import solver
+from datetime import datetime
 
 
 class AutoSolver:
@@ -101,31 +102,47 @@ if __name__ == "__main__":
     # target_word = input("Enter target word: ")
     # new_solver = AutoSolver(target_word, "trace")
     # new_solver.primary_loop()
-    
+
     dict_instance = solver.WordDictionary("words.txt")
     words = dict_instance.get_word_list()
+    n = len(words)
+    failures = []
     results = {0: 0, 1: 0}
+    progress = 0
     for word in words:
+        if progress == 10:
+            break
+        progress += 1
+        prog = "{0:.2%}".format(progress/n)
+        # print(str(progress) + "/" + str(n), end="\r")
+        print(prog, end="\r")
         for i in range(2):
             robot = AutoSolver(word, "trace")
             wordle = solver.Solver(words)
             formatted_guess = robot.generate_input(robot.starting_word)
             if robot.starting_word.upper() == robot.target.upper():
                 results[i] += 1
-                print(word + " in 1")
+                # print(word + " in 1")
             else:
                 while True:
                     guess = wordle.user_input(formatted_guess)
                     formatted_guess = robot.generate_input(guess[i])
                     if wordle.get_num_guesses() >= 7:
                         results[i] += wordle.get_num_guesses()
-                        print(word + " failed")
+                        # print(word + " failed")
+                        failures.append(word + " " + str(i))
                         break
                     elif guess[i].upper() == robot.target.upper():
                         results[i] += wordle.get_num_guesses()
-                        print(word + " in " + str(wordle.get_num_guesses()))
+                        # print(word + " in " + str(wordle.get_num_guesses()))
                         break
     for key in results:
-        results[key] = results[key] // len(words)
+        results[key] = results[key] / len(words)
 
-    print(results)
+    time = datetime.now()
+    file = open(str(time) + "_results.txt", "w+")
+    file.write(str(results))
+    file.write("\n")
+    for fail in failures:
+        file.write(fail + "\n")
+    file.close()
